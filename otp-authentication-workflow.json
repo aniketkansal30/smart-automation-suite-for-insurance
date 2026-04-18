@@ -1,0 +1,306 @@
+{
+  "name": "OTP Authentication System",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "Your_path",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "YOUR_id",
+      "name": "Receive OTP Request",
+      "webhookId": "YOUR_id"
+    },
+    {
+      "parameters": {
+        "jsCode": "try {\n  const rawBody = $input.item.json.body;\n  let vehicle_no, phone;\n\n  if (typeof rawBody === \"string\") {\n    // Clean the string before parsing\n    const cleaned = rawBody.replace(/\\n/g, '').trim();\n    const parsed = JSON.parse(cleaned);\n    vehicle_no = parsed.vehicle_no;\n    phone = parsed.phone;\n  } else {\n    vehicle_no = rawBody.vehicle_no;\n    phone = rawBody.phone;\n  }\n\n  return [{ json: { vehicle_no, phone } }];\n} catch (error) {\n  return [{ json: { error: \"Invalid JSON\", details: error.message } }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "YOUR_id",
+      "name": "Validate Input Data"
+    },
+    {
+      "parameters": {
+        "url": "YOUR_SUPABASE_URL",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "vehicle_no",
+              "value": "=eq.{{ $json.vehicle_no }}"
+            },
+            {
+              "name": "phone",
+              "value": "=eq.{{ $json.phone }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "{\n  \"apikey\": \"YOUR_api_key\",\n  \"Content-Type\": \"application/json\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        448,
+        0
+      ],
+      "id": "YOUR_id",
+      "name": "Fetch User from Database",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  const otp = Math.floor(100000 + Math.random() * 900000).toString();\n\n  return {\n    json: {\n      ...item.json,\n      otp: otp,\n      otp_expiry: new Date(Date.now() + 5 * 60 * 1000).toISOString(),\n      message: \"OTP sent successfully\"\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        -96
+      ],
+      "id": "0a3a0aa9-62d2-4749-9982-69b329e18170",
+      "name": "Generate OTP"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "YOUR_SUPABASE_URL",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "vehicle_no",
+              "value": "=eq.{{ $('Receive OTP Request').item.json.body.vehicle_no }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "{\n  \"apikey\": \"YOUR_apikey\",\n  \"Authorization\": \"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im95cHZiZ3R1cXl4bmpjcWJpY2t5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjI2NTYwMSwiZXhwIjoyMDkxODQxNjAxfQ.KOzUfPEWUm9n7GvOfsthV68jdRfnHFslhHMgfhrV7es\",\n  \"Content-Type\": \"application/json\",\n  \"Prefer\": \"return=representation\"\n}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "otp",
+              "value": "={{ $('Generate OTP').item.json.otp }}"
+            },
+            {
+              "name": "otp_expiry",
+              "value": "={{ $('Generate OTP').item.json.otp_expiry }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1120,
+        -96
+      ],
+      "id": "dd85ed01-9639-4de0-89f0-49cfcb5e9a02",
+      "name": "Store OTP in Database",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, message: \"OTP sent successfully\", vehicle_no: $(\"Receive OTP Request\").item.json.body.vehicle_no, phone: $(\"Receive OTP Request\").item.json.body.phone } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1568,
+        -96
+      ],
+      "id": "6f979a9b-a247-45d1-aa5f-82ed2ed56c72",
+      "name": "Return Success Response"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"success\": false,\n  \"message\": \"User not found\"\n}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        896,
+        96
+      ],
+      "id": "7ab6a7be-b08b-447e-9677-ac12292e89a0",
+      "name": "Return User Not Found"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "YOUR_twillo_URL",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "To",
+              "value": "=+91{{ $('Validate Input Data').item.json.phone }}"
+            },
+            {
+              "name": "From",
+              "value": "no."
+            },
+            {
+              "name": "Body",
+              "value": "=Your OTP is {{ $('Generate OTP').item.json.otp }}. Valid for 5 minutes."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1344,
+        -96
+      ],
+      "id": "3d5b604a-8055-4b4e-bc2a-501f07e26b91",
+      "name": "Send OTP via SMS",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "P9IrYTvJTTw6RLG7",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\n\nif (!data.id) {\n  throw new Error(\"User not found\");\n}\n\nreturn [{ json: { ...data } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ],
+      "id": "bd03063c-ed0e-4a08-8e61-90e45970d8c0",
+      "name": "Check User",
+      "onError": "continueErrorOutput"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Receive OTP Request": {
+      "main": [
+        [
+          {
+            "node": "Validate Input Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Input Data": {
+      "main": [
+        [
+          {
+            "node": "Fetch User from Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch User from Database": {
+      "main": [
+        [
+          {
+            "node": "Check User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate OTP": {
+      "main": [
+        [
+          {
+            "node": "Store OTP in Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store OTP in Database": {
+      "main": [
+        [
+          {
+            "node": "Send OTP via SMS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send OTP via SMS": {
+      "main": [
+        [
+          {
+            "node": "Return Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check User": {
+      "main": [
+        [
+          {
+            "node": "Generate OTP",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return User Not Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "711316f0-2465-4ef3-baff-c9d53ebbf411",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "08b2a0de6fc5cf1f03fd09f121e751e7e8cb21baeb2ad69f3233f78202d952bc"
+  },
+  "id": "jT73wlNl6ZJloGG6",
+  "tags": []
+}
