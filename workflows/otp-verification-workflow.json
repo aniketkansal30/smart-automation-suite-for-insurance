@@ -1,0 +1,281 @@
+{
+  "name": "Verify OTP",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "const rawBody = $input.first().json.body;\n\nlet vehicle_no, phone, otp;\n\nif (typeof rawBody === \"string\") {\n  const parsed = JSON.parse(rawBody.replace(/\\n/g, '').trim());\n  vehicle_no = parsed.vehicle_no;\n  phone = parsed.phone;\n  otp = parsed.otp;\n} else {\n  vehicle_no = rawBody.vehicle_no;\n  phone = rawBody.phone;\n  otp = rawBody.otp;\n}\n\nif (!vehicle_no || !phone || !otp) {\n  throw new Error(\"Missing fields\");\n}\n\nreturn [{ json: { vehicle_no, phone, otp } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        224
+      ],
+      "id": "9cced26f-152a-49a4-bdd9-5b4c06aedb7f",
+      "name": "Validate Input Data"
+    },
+    {
+      "parameters": {
+        "url": "YOUR_SUPABASE_URL",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "vehicle_no",
+              "value": "=eq.{{ $json.vehicle_no }}"
+            },
+            {
+              "name": "phone",
+              "value": "=eq.{{ $json.phone }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "{\n  \"apikey\": \"YOUR_apikey\",\n  \"Authorization\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im95cHZiZ3R1cXl4bmpjcWJpY2t5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNjU2MDEsImV4cCI6MjA5MTg0MTYwMX0.IpdX-0bWJV4-ymOsb0496GHmtG_Fwp6zHA6ATEUce74\",\n  \"Content-Type\": \"application/json\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        448,
+        224
+      ],
+      "id": "08624afc-0c11-4d7f-9878-f56af29e30cc",
+      "name": "Fetch User from Database",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "a742d458-7e33-48c5-ade8-ad6435c248ea",
+              "leftValue": "=={{ $items(\"Fetch User from Database\").length > 0 }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        672,
+        224
+      ],
+      "id": "77a58ce1-9d22-4901-b051-8157efa5ed1b",
+      "name": "User Exists?"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "verify-otp",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        224
+      ],
+      "id": "e3d739ac-46a3-4c60-8c0e-18cb6aa652c5",
+      "name": "Receive Verify Request",
+      "webhookId": "a9faa5a6-94c8-4a9e-9515-f60638596388"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "a742d458-7e33-48c5-ade8-ad6435c248ea",
+              "leftValue": "=={{ $('Fetch User from Database').item.json.otp }}",
+              "rightValue": "=={{ $('Validate Input Data').item.json.otp }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "24a27266-ebe8-4d9a-b98a-7531d58e1bec",
+              "leftValue": "=={{ new Date($('Fetch User from Database').item.json.otp_expiry) > new Date() }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        896,
+        128
+      ],
+      "id": "e7def625-66c1-41fd-a82d-1596fd18bee1",
+      "name": "Check OTP"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"success\": true,\n  \"message\": \"OTP verified successfully\"\n}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1120,
+        32
+      ],
+      "id": "64080748-b076-4359-bfc5-28a853823802",
+      "name": "Success"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"success\": false,\n  \"message\": \"User not found\"\n}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1120,
+        224
+      ],
+      "id": "e47b7e51-85fa-44e9-bb7a-5adbac3ba6b5",
+      "name": "Invalid OTP"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"success\": true,\n  \"message\": \"OTP verified successfully\"\n}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        896,
+        320
+      ],
+      "id": "4e2c294c-67ee-4b00-a30e-184528d4bec1",
+      "name": "User not found"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Validate Input Data": {
+      "main": [
+        [
+          {
+            "node": "Fetch User from Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch User from Database": {
+      "main": [
+        [
+          {
+            "node": "User Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "User Exists?": {
+      "main": [
+        [
+          {
+            "node": "Check OTP",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "User not found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Receive Verify Request": {
+      "main": [
+        [
+          {
+            "node": "Validate Input Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check OTP": {
+      "main": [
+        [
+          {
+            "node": "Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Invalid OTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "88cdb6a5-1c48-461f-830c-2144ab92071c",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "08b2a0de6fc5cf1f03fd09f121e751e7e8cb21baeb2ad69f3233f78202d952bc"
+  },
+  "id": "4SD1hDhEbwdJTwVx",
+  "tags": []
+}
